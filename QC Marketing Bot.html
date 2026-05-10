@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QC Marketing Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080a10;
+    --surface: #0f1117;
+    --surface2: #161922;
+    --surface3: #1e2130;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e2e4ed;
+    --text2: #8891a8;
+    --text3: #565e75;
+    --accent: oklch(0.62 0.22 255);
+    --accent-dim: oklch(0.62 0.22 255 / 0.15);
+    --accent-glow: oklch(0.62 0.22 255 / 0.3);
+    --success: oklch(0.65 0.18 145);
+    --success-dim: oklch(0.65 0.18 145 / 0.12);
+    --danger: oklch(0.52 0.13 20);
+    --danger-dim: oklch(0.63 0.22 20 / 0.12);
+    --warning: oklch(0.72 0.18 78);
+    --warning-dim: oklch(0.72 0.18 78 / 0.12);
+    --purple: #9333ea;
+    --purple-dim: rgba(147, 51, 234, 0.14);
+    --sidebar-width: 290px;
+    --footer-h: 52px;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; overflow: hidden; }
+  #root { height: 100%; display: flex; flex-direction: column; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// Python bridge — Python pushes via window.evaluate_js("window.fnName(payload)")
+window.pushLogBatch = (entries) => {
+  window.dispatchEvent(new CustomEvent('bot-log-batch', { detail: entries }));
+};
+window.setAppState = (state) => {
+  window.dispatchEvent(new CustomEvent('bot-state', { detail: state }));
+};
+
+// ─── Helpers ───────────────────────────────────────────────────
+const nowTs = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+};
+
+const Icon = ({ d, size = 14, stroke = "currentColor", fill = "none", strokeWidth = 1.6 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+
+const icons = {
+  bot: "M12 2v4M5 8h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2zM9 13h.01M15 13h.01",
+  scan: "M5 3H3v4M19 3h2v4M5 21H3v-4M19 21h2v-4M12 8v8M8 12h8",
+  edit: "M12 20h9M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z",
+  settings: "M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
+  link: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
+  log: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6",
+  folder: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z",
+  trello: "M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2zM7 7v8M13 7v4",
+  clock: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2",
+  external: "M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3",
+  check: "M20 6L9 17l-5-5",
+  cross: "M18 6L6 18M6 6l12 12",
+};
+
+// ─── UI primitives ─────────────────────────────────────────────
+function StatusDot({ active, pulse }) {
+  return (
+    <span style={{ position:'relative', display:'inline-flex', width:8, height:8 }}>
+      <span style={{
+        display:'inline-block', width:8, height:8, borderRadius:'50%',
+        background: active ? 'var(--success)' : 'var(--surface3)',
+        position:'relative', zIndex:1,
+      }} />
+      {active && pulse && (
+        <span style={{
+          position:'absolute', inset:0, borderRadius:'50%',
+          background: 'var(--success)',
+          animation: 'ping 1.6s cubic-bezier(0,0,0.2,1) infinite',
+        }} />
+      )}
+    </span>
+  );
+}
+
+function Toggle({ on, onToggle }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onClick={onToggle}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        width: 40, height: 22, borderRadius: 99,
+        background: on ? 'var(--accent)' : 'var(--surface3)',
+        border: `1px solid ${on ? 'var(--accent)' : hov ? 'var(--border2)' : 'var(--border)'}`,
+        position: 'relative', cursor: 'pointer', flexShrink: 0,
+        transition: 'all .2s',
+        boxShadow: on ? '0 0 12px var(--accent-glow)' : 'none',
+      }}>
+      <span style={{
+        position:'absolute', width:16, height:16, borderRadius:'50%',
+        background:'white', top:2, left: on ? 20 : 2,
+        transition: 'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,0.4)',
+      }} />
+    </div>
+  );
+}
+
+function ActionBtn({ icon, label, onClick, variant = 'default', blink, fullWidth }) {
+  const [hov, setHov] = useState(false);
+  const variants = {
+    default: { bg: hov ? 'var(--surface3)' : 'var(--surface2)', border: 'var(--border)', color: 'var(--text2)' },
+    primary: { bg: hov ? 'oklch(0.62 0.22 255 / 0.25)' : 'var(--accent-dim)', border: hov ? 'var(--accent)' : 'oklch(0.62 0.22 255 / 0.35)', color: 'var(--accent)' },
+    success: { bg: hov ? 'var(--success-dim)' : 'var(--surface2)', border: hov ? 'var(--success)' : 'var(--border)', color: hov ? 'var(--success)' : 'var(--text2)' },
+    warning: { bg: hov ? 'var(--warning-dim)' : 'var(--surface2)', border: hov ? 'var(--warning)' : 'var(--border)', color: hov ? 'var(--warning)' : 'var(--text2)' },
+    purple:  { bg: hov ? 'oklch(0.55 0.18 285 / 0.18)' : 'var(--surface2)', border: hov ? 'oklch(0.62 0.18 285)' : 'var(--border)', color: hov ? 'oklch(0.72 0.18 285)' : 'var(--text2)' },
+    danger:  { bg: hov ? 'var(--danger-dim)' : 'var(--surface2)', border: hov ? 'var(--danger)' : 'var(--border)', color: hov ? 'var(--danger)' : 'var(--text2)' },
+  };
+  const v = variants[variant];
+  return (
+    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+      display:'flex', alignItems:'center', gap:6, justifyContent: fullWidth ? 'center' : 'flex-start',
+      width: fullWidth ? '100%' : 'auto',
+      background: v.bg, border:`1px solid ${v.border}`,
+      color: v.color, borderRadius: 6,
+      padding:'7px 13px', cursor:'pointer', fontFamily:'inherit',
+      fontSize:12, fontWeight:500, transition:'all .15s',
+      whiteSpace:'nowrap',
+      filter: blink ? 'brightness(1.6)' : 'none',
+    }}>
+      {icon && <Icon d={icons[icon]} size={13} strokeWidth={2} />}
+      {label}
+    </button>
+  );
+}
+
+function SectionLabel({ children, right }) {
+  return (
+    <div style={{
+      display:'flex', justifyContent:'space-between', alignItems:'center',
+      marginBottom: 8, paddingLeft: 2,
+    }}>
+      <span style={{
+        fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.09em',
+        color:'var(--text3)',
+      }}>{children}</span>
+      {right}
+    </div>
+  );
+}
+
+// ─── Bot Card (large, centerpiece) ─────────────────────────────
+function BotCard({ enabled, status, nextScanIn, currentWait, onToggle }) {
+  const isRunning = enabled && (status === 'Scanning' || status === 'Reviewing');
+  const isStandby = enabled && status === 'Standby';
+  const colorMap = {
+    'Reviewing': 'var(--purple)',
+    'Scanning': 'var(--accent)',
+    'Standby': 'var(--success)',
+    'Stopped': 'var(--text3)',
+    'Idle': 'var(--text3)',
+  };
+  const c = colorMap[status] || 'var(--text3)';
+  const cdim = enabled
+    ? (status === 'Reviewing' ? 'var(--purple-dim)'
+       : status === 'Scanning' ? 'var(--accent-dim)'
+       : 'var(--success-dim)')
+    : 'var(--surface2)';
+
+  return (
+    <div style={{
+      background: cdim,
+      border: `1px solid ${enabled ? c : 'var(--border)'}`,
+      borderRadius: 10, padding: '14px 16px',
+      transition: 'all .25s',
+      opacity: enabled ? 1 : 0.65,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom: enabled ? 12 : 0 }}>
+        <div style={{
+          width:34, height:34, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center',
+          background: isRunning ? c : enabled ? `${c}22` : 'var(--surface3)',
+          color: isRunning ? '#fff' : enabled ? c : 'var(--text3)',
+          transition: 'all .2s',
+        }}>
+          <Icon d={icons.bot} size={16} strokeWidth={2} />
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:700, fontSize:14, letterSpacing:'0.02em' }}>QC Bot</div>
+          <div style={{ fontSize:11, color: enabled ? c : 'var(--text3)', marginTop: 2 }}>
+            {status}
+            {isRunning && (
+              <span className="act-pulse" style={{ background: c, marginLeft: 6 }} />
+            )}
+          </div>
+        </div>
+        <Toggle on={enabled} onToggle={onToggle} />
+      </div>
+
+      {enabled && (
+        <div style={{
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:8,
+          padding: '10px 12px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+        }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+            <span style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+              {isStandby ? 'Next scan in' : status === 'Scanning' ? 'Scanning...' : status === 'Reviewing' ? 'Reviewing...' : 'Status'}
+            </span>
+            <span style={{
+              fontSize: 18, fontFamily:"'JetBrains Mono', monospace", fontWeight:600,
+              color: c,
+            }}>
+              {isStandby ? `${nextScanIn}s` : isRunning ? '...' : '—'}
+            </span>
+          </div>
+          {isStandby && (
+            <div style={{
+              fontSize:10, color:'var(--text3)',
+              fontFamily:"'JetBrains Mono', monospace",
+              textAlign:'right',
+            }}>
+              <div>wait window</div>
+              <div style={{ color:'var(--text2)', marginTop:2 }}>{currentWait}s</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Settings Card ─────────────────────────────────────────────
+function SettingsCard({ settings, onSet }) {
+  const [open, setOpen] = useState(true);
+  const models = [
+    { id: 'claude-opus-4-7',           name: 'Claude Opus 4.7 (smart, mahal)' },
+    { id: 'claude-sonnet-4-6',         name: 'Claude Sonnet 4.6 (recommended)' },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 (cepat)' },
+    { id: 'gemini-2.5-pro',            name: 'Gemini 2.5 Pro (smart, video native)' },
+    { id: 'gemini-2.5-flash',          name: 'Gemini 2.5 Flash (cepat, paling murah)' },
+  ];
+
+  return (
+    <div style={{
+      background: 'var(--surface2)', border:'1px solid var(--border)',
+      borderRadius: 10, padding: '12px 14px',
+    }}>
+      <div onClick={() => setOpen(!open)} style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        cursor:'pointer', userSelect:'none',
+        marginBottom: open ? 12 : 0,
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6, color:'var(--text2)' }}>
+          <Icon d={icons.settings} size={12} stroke="var(--text2)" />
+          <span style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em' }}>Settings</span>
+        </div>
+        <span style={{ color:'var(--text3)', fontSize:11 }}>{open ? '−' : '+'}</span>
+      </div>
+
+      {open && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {/* Threshold */}
+          <div>
+            <label style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+              Threshold (skor min publish)
+            </label>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+              <input
+                type="number"
+                min={0} max={100}
+                value={settings.threshold ?? 75}
+                onChange={(e) => onSet('threshold', parseInt(e.target.value, 10) || 0)}
+                style={{
+                  flex:1, background:'var(--surface3)', border:'1px solid var(--border2)',
+                  color:'var(--text)', padding:'5px 8px', borderRadius:6,
+                  fontFamily:"'JetBrains Mono', monospace", fontSize:13, fontWeight:600,
+                }}
+              />
+              <span style={{ color:'var(--text3)', fontSize:11 }}>/ 100</span>
+            </div>
+          </div>
+
+          {/* Model */}
+          <div>
+            <label style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+              AI Model
+            </label>
+            <select
+              value={settings.model || 'claude-opus-4-7'}
+              onChange={(e) => onSet('model', e.target.value)}
+              style={{
+                width:'100%', marginTop:4,
+                background:'var(--surface3)', border:'1px solid var(--border2)',
+                color:'var(--text)', padding:'5px 8px', borderRadius:6,
+                fontFamily:'inherit', fontSize:12, cursor:'pointer',
+              }}>
+              {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+
+          {/* Web Search */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <div style={{ fontSize:12, color:'var(--text)' }}>Web Search</div>
+              <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>Verifikasi fakta klaim</div>
+            </div>
+            <Toggle on={!!settings.web_search} onToggle={() => onSet('web_search', !settings.web_search)} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Last Card Preview ────────────────────────────────────────
+function LastCardPreview({ card, onOpenUrl }) {
+  if (!card) {
+    return (
+      <div style={{
+        background:'var(--surface2)', border:'1px solid var(--border)',
+        borderRadius:10, padding:'14px 14px',
+        color:'var(--text3)', fontSize:11, textAlign:'center',
+      }}>
+        Belum ada card di-review.
+      </div>
+    );
+  }
+  const isPublish = card.outcome === 'publish';
+  const c = isPublish ? 'var(--success)' : 'var(--warning)';
+  return (
+    <div style={{
+      background:'var(--surface2)',
+      border:`1px solid ${c}40`,
+      borderRadius:10, padding:'12px 14px',
+      borderLeft:`3px solid ${c}`,
+    }}>
+      <div style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6,
+      }}>
+        <span style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Last reviewed</span>
+        <span style={{
+          fontSize:10, color:c, fontWeight:700, fontFamily:"'JetBrains Mono', monospace",
+          background:`${c}18`, border:`1px solid ${c}40`, borderRadius:4, padding:'1px 6px',
+        }}>{isPublish ? '✅ PUBLISH' : '⚠️ EDITING'}</span>
+      </div>
+      <div
+        onClick={() => card.url && onOpenUrl(card.url)}
+        style={{
+          fontSize:13, color:'var(--text)', fontWeight:600, marginBottom:6,
+          overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box',
+          WebkitLineClamp: 2, WebkitBoxOrient:'vertical',
+          cursor: card.url ? 'pointer' : 'default',
+        }}
+        title={card.url ? 'Klik untuk buka di Trello' : ''}
+      >
+        {card.name}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{
+          fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono', monospace",
+          color: c,
+        }}>
+          {card.score}
+          <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, marginLeft:4 }}>/ 100</span>
+        </span>
+        <span style={{ fontSize:10, color:'var(--text3)', fontFamily:"'JetBrains Mono', monospace" }}>
+          {card.ts}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stats compact ─────────────────────────────────────────────
+function StatsCompact({ stats }) {
+  if (!stats) return null;
+  const today = stats.today || {};
+  const all = stats.all_time || {};
+  const todayAvg = today.score_count > 0 ? Math.round(today.score_sum / today.score_count) : 0;
+  const allAvg = all.score_count > 0 ? Math.round(all.score_sum / all.score_count) : 0;
+
+  const Cell = ({ label, value, color }) => (
+    <div style={{ flex:1, padding:'8px 10px' }}>
+      <div style={{ fontSize:9, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</div>
+      <div style={{ fontSize:15, fontWeight:700, color: color || 'var(--text)', marginTop:2, fontFamily:"'JetBrains Mono', monospace" }}>{value}</div>
+    </div>
+  );
+  return (
+    <div style={{
+      background:'var(--surface2)', border:'1px solid var(--border)',
+      borderRadius:10, overflow:'hidden',
+    }}>
+      <div style={{ display:'flex', borderBottom:'1px solid var(--border)' }}>
+        <Cell label="Today" value={today.reviewed || 0} />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="✅ Publish" value={today.publish || 0} color="var(--success)" />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="⚠️ Editing" value={today.editing || 0} color="var(--warning)" />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="Avg" value={todayAvg} color="var(--accent)" />
+      </div>
+      <div style={{ display:'flex' }}>
+        <Cell label="All-time" value={all.reviewed || 0} color="var(--text2)" />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="Publish" value={all.publish || 0} color="var(--text2)" />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="Editing" value={all.editing || 0} color="var(--text2)" />
+        <div style={{ width:1, background:'var(--border)' }} />
+        <Cell label="Avg" value={allAvg} color="var(--text2)" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Log Entry ────────────────────────────────────────────────
+function LogEntry({ entry }) {
+  const levelColors = {
+    APP: 'var(--accent)', TRELLO: '#3498db', CLAUDE: 'var(--purple)',
+    REVIEW: 'var(--warning)', ERR: 'var(--danger)', OK: 'var(--success)',
+    WARN: 'var(--warning)', SYS: 'var(--text3)',
+  };
+  const c = levelColors[entry.level] || 'var(--text2)';
+  const [hov, setHov] = useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+      display:'flex', alignItems:'flex-start', gap:10, padding:'5px 16px',
+      borderBottom:'1px solid var(--border)',
+      background: hov ? 'rgba(255,255,255,0.03)' : 'transparent',
+      cursor:'default', transition:'background .1s',
+      fontSize:12, lineHeight:1.5, fontFamily:"'JetBrains Mono', monospace",
+    }}>
+      <span style={{ color:'var(--text3)', flexShrink:0, userSelect:'none', fontSize:11 }}>{entry.time}</span>
+      <span style={{
+        color: c, flexShrink:0, fontSize:11,
+        background: `${c}18`, border:`1px solid ${c}30`,
+        borderRadius:4, padding:'0 5px', lineHeight:'18px',
+        fontWeight:500, letterSpacing:'0.04em', minWidth: 60, textAlign:'center',
+      }}>{entry.level}</span>
+      <span style={{ color:'#b9bccc', flex:1, wordBreak:'break-word' }}>{entry.msg}</span>
+    </div>
+  );
+}
+
+// ─── Toast ────────────────────────────────────────────────────
+function Toast({ toasts, onDismiss }) {
+  return (
+    <div style={{ position:'fixed', top:16, right:16, zIndex:9999, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          display:'flex', alignItems:'flex-start', gap:10,
+          background:'var(--surface2)', border:`1px solid ${t.type==='ok' ? 'var(--success)' : 'var(--danger)'}40`,
+          borderLeft:`3px solid ${t.type==='ok' ? 'var(--success)' : 'var(--danger)'}`,
+          borderRadius:8, padding:'10px 14px', minWidth:280, maxWidth:400,
+          boxShadow:'0 8px 32px rgba(0,0,0,0.4)',
+          animation:'toastIn .25s ease',
+          pointerEvents:'all',
+        }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{
+              display:'inline-flex', alignItems:'center', gap:5,
+              fontSize:10, fontWeight:600, letterSpacing:'0.04em',
+              color: t.type==='ok' ? 'var(--success)' : 'var(--danger)',
+              background: t.type==='ok' ? 'var(--success-dim)' : 'var(--danger-dim)',
+              border: `1px solid ${t.type==='ok' ? 'var(--success)' : 'var(--danger)'}30`,
+              borderRadius: 99, padding: '2px 8px', marginBottom: 4,
+            }}>
+              <Icon d={t.type==='ok' ? icons.check : icons.cross} size={10} strokeWidth={3} />
+              {t.type==='ok' ? 'SUKSES' : 'ERROR'}
+            </div>
+            <div style={{ fontSize:12, color:'#b5bacb', lineHeight:1.45, wordBreak:'break-word' }}>{t.msg}</div>
+          </div>
+          <button onClick={() => onDismiss(t.id)} style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:14, padding:'0 2px' }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Notif sound (preload)
+const _notifAudio = (() => {
+  try { const a = new Audio('notif.wav'); a.preload = 'auto'; a.volume = 0.6; return a; }
+  catch (_) { return null; }
+})();
+
+// ─── Header bar buttons ──────────────────────────────────────
+function PillBtn({ active, onClick, children, color = 'var(--accent)' }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+      display:'flex', alignItems:'center', gap:5, padding:'4px 10px',
+      background: active ? `${color}22` : hov ? 'var(--surface3)' : 'var(--surface2)',
+      border: `1px solid ${active ? color : hov ? 'var(--border2)' : 'var(--border)'}`,
+      borderRadius:6,
+      color: active ? color : hov ? 'var(--text)' : 'var(--text3)',
+      cursor:'pointer', fontSize:11, fontWeight:500, fontFamily:'inherit', transition:'all .15s',
+    }}>{children}</button>
+  );
+}
+
+const APP_START_TS = Date.now();
+function ClockDisplay() {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    const tick = () => setT(Math.floor((Date.now() - APP_START_TS) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  const h = String(Math.floor(t / 3600)).padStart(2, '0');
+  const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
+  const s = String(t % 60).padStart(2, '0');
+  return <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:11 }}>{`${h}:${m}:${s}`}</span>;
+}
+
+// ─── Main App ─────────────────────────────────────────────────
+function App() {
+  const [logs, setLogs] = useState([]);
+  const [bot, setBot] = useState({ enabled: false, status: 'Idle', next_scan_in: 0, current_wait: 30 });
+  const [lastCard, setLastCard] = useState(null);
+  const [settings, setSettings] = useState({ threshold: 75, model: 'claude-opus-4-7', web_search: true });
+  const [stats, setStats] = useState({ today: {}, all_time: {} });
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [toasts, setToasts] = useState([]);
+  const [blinking, setBlinking] = useState({});
+  const [appInfo, setAppInfo] = useState({ version:'', releaseDate:'' });
+
+  const logRef = useRef(null);
+  const toastIdRef = useRef(0);
+  const logIdRef = useRef(0);
+
+  const addToast = useCallback((type, msg) => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev.slice(-3), { id, type, msg }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000);
+    if (_notifAudio) {
+      try { _notifAudio.currentTime = 0; const p = _notifAudio.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+    }
+  }, []);
+
+  const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  const blink = (key) => {
+    setBlinking(b => ({ ...b, [key]: true }));
+    setTimeout(() => setBlinking(b => ({ ...b, [key]: false })), 400);
+  };
+
+  const api = () => (window.pywebview && window.pywebview.api) || null;
+
+  // ── Bridge listeners ──
+  useEffect(() => {
+    const onLogBatch = (e) => {
+      const entries = Array.isArray(e.detail) ? e.detail : [e.detail];
+      if (!entries.length) return;
+      setLogs(prev => {
+        const appended = entries.map(entry => ({
+          id: ++logIdRef.current,
+          time: entry.time || nowTs(),
+          level: entry.level || 'SYS',
+          msg: entry.msg || '',
+        }));
+        for (const entry of appended) {
+          const lvl = entry.level || '';
+          const msg = entry.msg || '';
+          if (lvl === 'OK' && msg.includes('SCORE=')) addToast('ok', msg);
+          else if (lvl === 'ERR') addToast('err', msg);
+        }
+        const capped = [...prev, ...appended];
+        return capped.length > 500 ? capped.slice(-500) : capped;
+      });
+    };
+    const onState = (e) => {
+      const s = e.detail || {};
+      if (s.bot)        setBot(s.bot);
+      if (s.last_card !== undefined) setLastCard(s.last_card);
+      if (s.settings)   setSettings(prev => ({ ...prev, ...s.settings }));
+      if (s.stats)      setStats(s.stats);
+    };
+    window.addEventListener('bot-log-batch', onLogBatch);
+    window.addEventListener('bot-state', onState);
+    return () => {
+      window.removeEventListener('bot-log-batch', onLogBatch);
+      window.removeEventListener('bot-state', onState);
+    };
+  }, [addToast]);
+
+  // Autoscroll log
+  useEffect(() => {
+    if (autoScroll && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs, autoScroll]);
+
+  // Fetch initial settings + app info
+  useEffect(() => {
+    let tries = 0;
+    const poll = () => {
+      const a = api();
+      if (a && a.get_settings && a.get_app_info) {
+        try { a.get_settings().then(s => setSettings(prev => ({ ...prev, ...s }))); } catch (_) {}
+        try { a.get_app_info().then(i => setAppInfo(i)); } catch (_) {}
+        return;
+      }
+      if (tries++ < 40) setTimeout(poll, 150);
+    };
+    poll();
+  }, []);
+
+  // ── Actions ──
+  const toggleBot = () => {
+    const next = !bot.enabled;
+    setBot(b => ({ ...b, enabled: next, status: next ? 'Standby' : 'Stopped' }));
+    const a = api();
+    if (a && a.toggle_bot) try { a.toggle_bot(next); } catch (_) {}
+  };
+  const forceScan = () => { blink('scan'); const a = api(); if (a && a.force_scan) try { a.force_scan(); } catch (_) {} };
+  const editPrompt = () => { blink('prompt'); const a = api(); if (a && a.edit_prompt) try { a.edit_prompt(); } catch (_) {} };
+  const testConn = async () => {
+    blink('test');
+    const a = api();
+    if (a && a.test_connection) {
+      try {
+        const r = await a.test_connection();
+        const lines = [
+          `Trello: ${r.trello ? 'OK ' + r.trello_msg : 'FAIL ' + r.trello_msg}`,
+          `Claude: ${r.claude ? 'OK' : 'FAIL'} (${r.claude_msg})`,
+          `Gemini: ${r.gemini ? 'OK' : 'FAIL'} (${r.gemini_msg})`,
+          r.active_provider ? `Active: ${r.active_provider}` : '',
+        ].filter(Boolean);
+        const allOk = r.trello && (r.claude || r.gemini);
+        addToast(allOk ? 'ok' : 'err', lines.join(' | '));
+      } catch (e) { addToast('err', 'Test connection error'); }
+    }
+  };
+  const openTrello = () => { blink('trello'); const a = api(); if (a && a.open_trello_board) try { a.open_trello_board(); } catch (_) {} };
+  const openLog = () => { blink('log'); const a = api(); if (a && a.open_log_folder) try { a.open_log_folder(); } catch (_) {} };
+  const openReviews = () => { blink('reviews'); const a = api(); if (a && a.open_reviews_folder) try { a.open_reviews_folder(); } catch (_) {} };
+  const openCardUrl = (url) => { const a = api(); if (a && a.open_card_url) try { a.open_card_url(url); } catch (_) {} };
+  const clearLogs = () => setLogs([]);
+  const toggleAutoScroll = () => setAutoScroll(v => !v);
+  const toggleAlwaysOnTop = () => {
+    const next = !alwaysOnTop;
+    setAlwaysOnTop(next);
+    const a = api();
+    if (a && a.set_always_on_top) try { a.set_always_on_top(next); } catch (_) {}
+  };
+
+  const onSetSetting = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    const a = api();
+    if (!a) return;
+    try {
+      if (key === 'threshold')  a.set_threshold(value);
+      if (key === 'model')      a.set_model(value);
+      if (key === 'web_search') a.set_web_search(value);
+    } catch (_) {}
+  };
+
+  return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column' }}>
+      <style>{`
+        @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
+        @keyframes shimmer { 0% { left: -50%; } 100% { left: 110%; } }
+        @keyframes toastIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
+        @keyframes actPulse { 0%, 100% { transform: scale(0.7); opacity: 0.7; } 50% { transform: scale(1.15); opacity: 1; } }
+        .act-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; animation: actPulse 1.4s ease-in-out infinite; }
+      `}</style>
+
+      <Toast toasts={toasts} onDismiss={dismissToast} />
+
+      {/* HEADER */}
+      <header style={{
+        height: 48, display:'flex', alignItems:'center', justifyContent:'space-between',
+        padding: '0 16px', borderBottom:'1px solid var(--border)',
+        background:'var(--surface)', flexShrink:0,
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <Icon d={icons.bot} size={18} stroke="var(--accent)" strokeWidth={2} />
+          <span style={{ fontSize:14, fontWeight:700, letterSpacing:'0.02em' }}>QC Marketing Bot</span>
+          {appInfo.version && (
+            <span style={{ fontSize:10, color:'var(--text3)', fontFamily:"'JetBrains Mono', monospace" }}>v{appInfo.version}</span>
+          )}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{
+            display:'flex', alignItems:'center', gap:6, padding:'4px 10px',
+            background: bot.enabled ? 'var(--success-dim)' : 'var(--danger-dim)',
+            border: `1px solid ${bot.enabled ? 'var(--success)' : 'var(--danger)'}30`,
+            borderRadius:99, fontSize:11, fontWeight:500,
+            color: bot.enabled ? 'var(--success)' : 'var(--danger)',
+          }}>
+            <StatusDot active={bot.enabled} pulse />
+            {bot.enabled ? bot.status : 'Stopped'}
+          </div>
+          <div style={{
+            display:'flex', alignItems:'center', gap:4, padding:'4px 10px',
+            background:'var(--surface2)', border:'1px solid var(--border)',
+            borderRadius:99, fontSize:11, color:'var(--text3)',
+          }}>
+            <Icon d={icons.clock} size={12} stroke="var(--text3)" />
+            <ClockDisplay />
+          </div>
+          <PillBtn active={alwaysOnTop} onClick={toggleAlwaysOnTop} color="var(--warning)">On Top {alwaysOnTop ? 'ON' : 'OFF'}</PillBtn>
+          <PillBtn active={autoScroll} onClick={toggleAutoScroll}>Auto-scroll {autoScroll ? 'ON' : 'OFF'}</PillBtn>
+          <PillBtn onClick={clearLogs}>Clear</PillBtn>
+        </div>
+      </header>
+
+      {/* BODY */}
+      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+        {/* SIDEBAR */}
+        <aside style={{
+          width:'var(--sidebar-width)', borderRight:'1px solid var(--border)',
+          background:'var(--surface)', display:'flex', flexDirection:'column',
+          overflow:'hidden', flexShrink:0,
+        }}>
+          <div style={{ flex:1, overflow:'auto', padding:'14px 12px', display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <SectionLabel>Bot</SectionLabel>
+              <BotCard
+                enabled={bot.enabled}
+                status={bot.status}
+                nextScanIn={bot.next_scan_in}
+                currentWait={bot.current_wait}
+                onToggle={toggleBot}
+              />
+            </div>
+
+            <div>
+              <SectionLabel>Settings</SectionLabel>
+              <SettingsCard settings={settings} onSet={onSetSetting} />
+            </div>
+
+            <div>
+              <SectionLabel>Last Card</SectionLabel>
+              <LastCardPreview card={lastCard} onOpenUrl={openCardUrl} />
+            </div>
+
+            <div>
+              <SectionLabel>Stats</SectionLabel>
+              <StatsCompact stats={stats} />
+            </div>
+          </div>
+        </aside>
+
+        {/* MAIN LOG */}
+        <main style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'var(--bg)' }}>
+          <div style={{
+            display:'flex', alignItems:'center', justifyContent:'space-between',
+            padding:'10px 16px', borderBottom:'1px solid var(--border)',
+            background:'var(--surface)', flexShrink:0,
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <StatusDot active pulse />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text2)' }}>Live Log</span>
+              <span style={{ fontSize:11, color:'var(--text3)', marginLeft:8 }}>{logs.length} entries</span>
+            </div>
+          </div>
+          <div ref={logRef} style={{ flex:1, overflow:'auto', paddingTop:4 }}>
+            {logs.length === 0 ? (
+              <div style={{ padding:'40px 20px', textAlign:'center', color:'var(--text3)', fontSize:12 }}>
+                Belum ada log. Toggle "QC Bot" ON untuk mulai polling.
+              </div>
+            ) : logs.map(entry => <LogEntry key={entry.id} entry={entry} />)}
+          </div>
+        </main>
+      </div>
+
+      {/* FOOTER */}
+      <footer style={{
+        height:'var(--footer-h)', display:'flex', alignItems:'center',
+        padding:'0 14px', borderTop:'1px solid var(--border)',
+        background:'var(--surface)', gap:8, flexShrink:0, overflow:'hidden',
+      }}>
+        <ActionBtn icon="link" label="Test Connection" onClick={testConn} variant="success" blink={blinking['test']} />
+        <ActionBtn icon="scan" label="Scan Now" onClick={forceScan} variant="primary" blink={blinking['scan']} />
+        <ActionBtn icon="trello" label="Open Trello" onClick={openTrello} variant="default" blink={blinking['trello']} />
+        <ActionBtn icon="edit" label="Prompt" onClick={editPrompt} variant="purple" blink={blinking['prompt']} />
+        <ActionBtn icon="folder" label="Reviews" onClick={openReviews} variant="default" blink={blinking['reviews']} />
+        <ActionBtn icon="log" label="Logs" onClick={openLog} variant="warning" blink={blinking['log']} />
+        <div style={{ flex:1 }} />
+        {appInfo.version ? (
+          <div style={{
+            fontSize:10, color:'var(--text3)', opacity:0.55,
+            fontFamily:"'JetBrains Mono', monospace",
+            letterSpacing:'0.02em', userSelect:'none', whiteSpace:'nowrap',
+            lineHeight:1.35, textAlign:'right',
+            display:'flex', flexDirection:'column',
+          }}>
+            <span>Version: v{appInfo.version}</span>
+            <span>Last Update: {appInfo.releaseDate}</span>
+          </div>
+        ) : null}
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

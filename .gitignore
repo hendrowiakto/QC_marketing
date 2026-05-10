@@ -1,0 +1,42 @@
+# ===== Per-PC config & secrets (JANGAN pernah di-push) =====
+config.txt
+API Claude.txt
+API Gemini.txt
+Trello.txt
+
+# ===== Runtime state =====
+state.json
+log/
+logs/
+*.log
+reviews/
+
+# ===== Large binary asset (di-download via install_ffmpeg.bat) =====
+tools/ffmpeg/
+tools/ffmpeg.zip
+
+# ===== Cache / temporary =====
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ===== Local editor / tool =====
+.claude/
+.vscode/
+.idea/
+.playwright-mcp/
+
+# ===== Build artifacts (PyInstaller) =====
+build/
+dist/
+*.spec
+
+# ===== Archives =====
+*.rar
+*.zip
+*.7z
+
+# ===== Smoke test scratch =====
+_smoketest.py
+_smoke*.py

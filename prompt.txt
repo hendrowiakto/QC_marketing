@@ -85,13 +85,13 @@ kontras, dll. 1 saran = 1 baris]
 ### 📊 SKOR
 | # | Kriteria                                                  | Max | Skor |
 |---|-----------------------------------------------------------|-----|------|
-| 1 | Visual (branding, watermark, eye-catching, komposisi)     | 50  | __   |
-| 2 | Description / Caption                                     | 10  | __   |
-| 3 | Hashtag                                                   | 10  | __   |
-| 4 | Music / Audio                                             | 10  | __   |
-| 5 | Waktu Upload                                              | 10  | __   |
-| 6 | Akurasi Konten                                            | 10  | __   |
-|   | **TOTAL SKOR**                                            | 100 | __   |
+| 1 | Visual (branding, watermark, eye-catching, komposisi)     |  _/50   |
+| 2 | Description / Caption                                     |  _/10   |
+| 3 | Hashtag                                                   |  _/10   |
+| 4 | Music / Audio                                             |  _/10   |
+| 5 | Waktu Upload                                              |  _/10   |
+| 6 | Akurasi Konten                                            |  _/10   |
+|   | **TOTAL SKOR**                                            |  _/100   |
 
 ## KRITERIA REVIEW (internal — JANGAN ditulis ulang di output)
 

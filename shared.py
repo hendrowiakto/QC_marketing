@@ -704,26 +704,44 @@ class GeminiClient:
 
 
 # ===================== SCORE PARSER & TITLE UPDATE =====================
-# Cari skor rata-rata dari output Claude. Robust ke berbagai format:
-#   "**SKOR RATA-RATA**: 73"
-#   "| **SKOR RATA-RATA** | 73 |"
-#   "Skor rata-rata = 73.5"
-#   "Average Score: 73"
-#   "AVG 73"
+# Cari skor TOTAL (v2 system, max 100) atau SKOR RATA-RATA (v1 legacy).
+# Format yg di-handle:
+#   v2 table : "| **TOTAL SKOR** | 100 | 87 |"   → 87 (skip "100" max)
+#   v2 inline: "**TOTAL SKOR**: 87/100"          → 87
+#   v2 simple: "**TOTAL**: 87"                   → 87
+#   v1 legacy: "**SKOR RATA-RATA**: 73"          → 73
+#   v1 inline: "Skor rata-rata = 73.5"           → 73
 _SCORE_PATTERNS = [
-    # Primary: "SKOR RATA-RATA" (paling reliable, diminta di prompt)
+    # v2 PRIMARY: "TOTAL SKOR" di table row dgn max=100 lalu actual score
+    # "| **TOTAL SKOR** | 100 | 87 |" → grab the number AFTER "100"
+    re.compile(
+        r"TOTAL\s+SKOR[^\d\n]*\|[^\d\n]*\b100\b[^\d\n]*\|[^\d\n]*?(\d{1,3})",
+        re.IGNORECASE,
+    ),
+    # v2: "TOTAL SKOR: 87/100" or "TOTAL SKOR = 87 dari 100"
+    re.compile(
+        r"TOTAL\s+SKOR[^\d]{0,30}(\d{1,3})\s*(?:[/]\s*100|dari\s+100)",
+        re.IGNORECASE,
+    ),
+    # v2: "TOTAL SKOR: 87" tanpa /100
+    re.compile(r"TOTAL\s+SKOR[^\d]{0,30}(\d{1,3})\b", re.IGNORECASE),
+    # v2: "TOTAL: 87/100" (tanpa kata SKOR)
+    re.compile(r"\bTOTAL\b[^\d\n]{0,30}(\d{1,3})\s*(?:[/]\s*100|dari\s+100)", re.IGNORECASE),
+    # v1 legacy: SKOR RATA-RATA
     re.compile(r"SKOR\s+RATA[-\s]*RATA[^\d]{0,80}(\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE),
-    # Bahasa Indonesia variants
+    # v1 Indonesian variants
     re.compile(r"(?:skor|nilai|rating)\s+rata[-\s]*rata[^\d]{0,60}(\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE),
-    # English fallback
-    re.compile(r"average\s+(?:score|rating)[^\d]{0,40}(\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE),
-    # Last-resort: lone "AVG" + number
+    # English fallbacks
+    re.compile(r"(?:total|average)\s+score[^\d]{0,40}(\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE),
+    # Last-resort: AVG / TOTAL alone
     re.compile(r"\bAVG\b[^\d]{0,30}(\d{1,3}(?:[.,]\d+)?)", re.IGNORECASE),
 ]
 
 
 def parse_average_score(text):
-    """Extract average score (int 0-100) dari output Claude. None jika gagal."""
+    """Extract TOTAL/average score (int 0-100) dari output Claude. None jika gagal.
+    Nama function tetap parse_average_score untuk backward compat (v1 prompt juga
+    pakai function ini)."""
     if not text:
         return None
     for pattern in _SCORE_PATTERNS:
